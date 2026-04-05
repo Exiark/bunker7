@@ -4,7 +4,10 @@ import { computeTick } from './core/production.js'
 import { tickExploration, startExploration } from './core/exploration.js'
 import { EVENTS, shouldTriggerEvent, applyEventChoice } from './core/events.js'
 import { saveGame, loadGame } from './core/save.js'
-import { initSurvivorPosition, tickAnimations, assignSurvivorToRoom, unassignSurvivor, getRoomPosition } from './core/animation.js'
+import {
+  initSurvivorPosition, tickAnimations,
+  assignSurvivorToRoom, unassignSurvivor, getRoomPosition
+} from './core/animation.js'
 import ResourceBar from './components/ResourceBar.jsx'
 import BunkerView from './components/BunkerView.jsx'
 import Survivor from './components/Survivor.jsx'
@@ -14,7 +17,7 @@ import LogPanel from './components/LogPanel.jsx'
 export default function App() {
   const [state, setState] = useState(() => loadGame(INITIAL_STATE))
   const [positions, setPositions] = useState(() =>
-    INITIAL_STATE.survivors.map((s, i) => initSurvivorPosition(s.id, 0))
+    INITIAL_STATE.survivors.map(s => initSurvivorPosition(s.id, 0))
   )
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [selectedSurvivor, setSelectedSurvivor] = useState(null)
@@ -41,7 +44,21 @@ export default function App() {
   // Boucle animation — 50ms séparée
   useEffect(() => {
     const id = setInterval(() => {
-      setPositions(prev => tickAnimations(prev, stateRef.current.survivors))
+      setPositions(prev => {
+        const arrivals = []
+        const next = tickAnimations(prev, stateRef.current.survivors, arrivals)
+        if (arrivals.length > 0) {
+          setState(gs => {
+            const s = JSON.parse(JSON.stringify(gs))
+            arrivals.forEach(({ survivorId, roomId }) => {
+              const sv = s.survivors.find(x => x.id === survivorId)
+              if (sv) sv.room = roomId
+            })
+            return s
+          })
+        }
+        return next
+      })
     }, 50)
     return () => clearInterval(id)
   }, [])
@@ -73,11 +90,11 @@ export default function App() {
       } else {
         if (room.workers.length >= room.maxWorkers) return prev
         s.rooms.forEach(r => { r.workers = r.workers.filter(w => w !== survivorId) })
+        // NE PAS mettre survivor.room ici — mis à jour à l'arrivée via arrivals
+        s.logs = [{ msg: `${survivor.name} en route vers ${room.name}`, type: 'good', t: s.tick }, ...s.logs]
         room.workers.push(survivorId)
-        survivor.room = roomId
-        s.logs = [{ msg: `${survivor.name} assigné à ${room.name}`, type: 'good', t: s.tick }, ...s.logs]
         const roomPos = getRoomPosition(room)
-        setPositions(prev => assignSurvivorToRoom(prev, survivorId, roomPos.floor, roomPos.x))
+        setPositions(prev => assignSurvivorToRoom(prev, survivorId, roomPos.floor, roomPos.x, roomId))
       }
       return s
     })
