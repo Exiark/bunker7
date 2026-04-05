@@ -46,7 +46,7 @@ export default function App() {
     const id = setInterval(() => {
       setPositions(prev => {
         const arrivals = []
-        const next = tickAnimations(prev, stateRef.current.survivors, arrivals)
+        const next = tickAnimations(prev, arrivals)
         if (arrivals.length > 0) {
           setState(gs => {
             const s = JSON.parse(JSON.stringify(gs))
@@ -79,6 +79,10 @@ export default function App() {
       const room = s.rooms.find(r => r.id === roomId)
       const survivor = s.survivors.find(sv => sv.id === survivorId)
       if (!room || !survivor) return prev
+
+      const currentPos = stateRef.current
+      const pos = positions.find ? positions : []
+
       if (survivor.room?.startsWith('explore_')) return prev
 
       const idx = room.workers.indexOf(survivorId)
@@ -86,15 +90,15 @@ export default function App() {
         room.workers.splice(idx, 1)
         survivor.room = null
         s.logs = [{ msg: `${survivor.name} retiré de ${room.name}`, type: '', t: s.tick }, ...s.logs]
-        setPositions(prev => unassignSurvivor(prev, survivorId))
+        setPositions(p => unassignSurvivor(p, survivorId))
       } else {
         if (room.workers.length >= room.maxWorkers) return prev
         s.rooms.forEach(r => { r.workers = r.workers.filter(w => w !== survivorId) })
-        // NE PAS mettre survivor.room ici — mis à jour à l'arrivée via arrivals
-        s.logs = [{ msg: `${survivor.name} en route vers ${room.name}`, type: 'good', t: s.tick }, ...s.logs]
         room.workers.push(survivorId)
+        // survivor.room sera mis à jour à l'arrivée via arrivals
+        s.logs = [{ msg: `${survivor.name} en route vers ${room.name}`, type: 'good', t: s.tick }, ...s.logs]
         const roomPos = getRoomPosition(room)
-        setPositions(prev => assignSurvivorToRoom(prev, survivorId, roomPos.floor, roomPos.x, roomId))
+        setPositions(p => assignSurvivorToRoom(p, survivorId, roomPos.floor, roomPos.x, roomId))
       }
       return s
     })
@@ -136,6 +140,7 @@ export default function App() {
                 key={sv.id}
                 survivor={sv}
                 rooms={state.rooms}
+                positions={positions}
                 selected={selectedSurvivor === sv.id}
                 onClick={() => { setSelectedSurvivor(sv.id); setSelectedRoom(null) }}
               />
@@ -175,15 +180,16 @@ export default function App() {
               {state.survivors.map(sv => {
                 const inRoom = selectedRoomData.workers.includes(sv.id)
                 const inExplore = sv.room?.startsWith('explore_')
+                const inTransit = positions.find(p => p.id === sv.id)?.path?.length > 0
                 return (
                   <button
                     key={sv.id}
                     className={`assign-btn ${inRoom ? 'assigned' : ''}`}
-                    disabled={inExplore}
+                    disabled={inExplore || inTransit}
                     onClick={() => toggleAssign(selectedRoom, sv.id)}
                   >
                     <span>{sv.icon} {sv.name}</span>
-                    <span>{inRoom ? '✕ RETIRER' : '+ ASSIGNER'}</span>
+                    <span>{inRoom ? '✕ RETIRER' : inTransit ? '⟳ EN ROUTE' : '+ ASSIGNER'}</span>
                   </button>
                 )
               })}

@@ -42,6 +42,7 @@ export function assignSurvivorToRoom(positions, survivorId, roomFloor, roomX, ro
       path,
       state: 'walking',
       onLadder: false,
+      ladderY: 0,
       assignedRoom: { floor: roomFloor, x: roomX, roomId },
     }
   })
@@ -67,10 +68,8 @@ export function getRoomPosition(room) {
   return { floor: room.floor, x: colPositions[room.col] ?? 20 }
 }
 
-export function tickAnimations(positions, survivors, arrivals = []) {
+export function tickAnimations(positions, arrivals = []) {
   return positions.map(pos => {
-    const survivor = survivors.find(s => s.id === pos.id)
-    if (!survivor) return pos
     if (pos.path && pos.path.length > 0) return tickPath(pos, arrivals)
     if (pos.state === 'work') return pos
     return tickIdle(pos)
@@ -89,7 +88,7 @@ function tickPath(pos, arrivals) {
 
     if (Math.abs(diff) <= speed + 0.5) {
       if (remaining.length === 0) {
-        if (arrivals && pos.assignedRoom?.roomId) {
+        if (pos.assignedRoom?.roomId) {
           arrivals.push({ survivorId: pos.id, roomId: pos.assignedRoom.roomId })
         }
         return {
@@ -165,8 +164,6 @@ function tickPath(pos, arrivals) {
 }
 
 function tickIdle(pos) {
-  if (pos.path && pos.path.length > 0) return tickPath(pos, [])
-
   let { x, direction, state, stateTimer } = pos
   stateTimer--
 
