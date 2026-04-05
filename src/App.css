@@ -424,3 +424,8 @@ body {
   pointer-events: none;
   z-index: 9999;
 }
+
+img[src$=".gif"] {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}

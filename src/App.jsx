@@ -4,6 +4,7 @@ import { computeTick } from './core/production.js'
 import { tickExploration, startExploration } from './core/exploration.js'
 import { EVENTS, shouldTriggerEvent, applyEventChoice } from './core/events.js'
 import { saveGame, loadGame } from './core/save.js'
+import { initSurvivorPosition, tickAnimations, assignSurvivorToRoom, unassignSurvivor, getRoomPosition } from './core/animation.js'
 import ResourceBar from './components/ResourceBar.jsx'
 import BunkerView from './components/BunkerView.jsx'
 import Survivor from './components/Survivor.jsx'
@@ -12,13 +13,16 @@ import LogPanel from './components/LogPanel.jsx'
 
 export default function App() {
   const [state, setState] = useState(() => loadGame(INITIAL_STATE))
+  const [positions, setPositions] = useState(() =>
+    INITIAL_STATE.survivors.map((s, i) => initSurvivorPosition(s.id, 0))
+  )
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [selectedSurvivor, setSelectedSurvivor] = useState(null)
   const [sideTab, setSideTab] = useState('survivors')
   const stateRef = useRef(state)
   stateRef.current = state
 
-  // Boucle de jeu
+  // Boucle jeu — 100ms
   useEffect(() => {
     const id = setInterval(() => {
       setState(prev => {
@@ -31,6 +35,14 @@ export default function App() {
         return s
       })
     }, 100)
+    return () => clearInterval(id)
+  }, [])
+
+  // Boucle animation — 50ms séparée
+  useEffect(() => {
+    const id = setInterval(() => {
+      setPositions(prev => tickAnimations(prev, stateRef.current.survivors))
+    }, 50)
     return () => clearInterval(id)
   }, [])
 
@@ -57,12 +69,15 @@ export default function App() {
         room.workers.splice(idx, 1)
         survivor.room = null
         s.logs = [{ msg: `${survivor.name} retiré de ${room.name}`, type: '', t: s.tick }, ...s.logs]
+        setPositions(prev => unassignSurvivor(prev, survivorId))
       } else {
         if (room.workers.length >= room.maxWorkers) return prev
         s.rooms.forEach(r => { r.workers = r.workers.filter(w => w !== survivorId) })
         room.workers.push(survivorId)
         survivor.room = roomId
         s.logs = [{ msg: `${survivor.name} assigné à ${room.name}`, type: 'good', t: s.tick }, ...s.logs]
+        const roomPos = getRoomPosition(room)
+        setPositions(prev => assignSurvivorToRoom(prev, survivorId, roomPos.floor, roomPos.x))
       }
       return s
     })
@@ -83,6 +98,7 @@ export default function App() {
         <BunkerView
           rooms={state.rooms}
           survivors={state.survivors}
+          positions={positions}
           selectedRoom={selectedRoom}
           onSelectRoom={id => { setSelectedRoom(id); setSelectedSurvivor(null) }}
         />
